@@ -6,8 +6,6 @@ import gym
 from gym import spaces
 import matplotlib.pyplot as plt
 import copy
-import random
-import math
 
 
 class Game2048Env(gym.Env):
@@ -44,7 +42,8 @@ class Game2048Env(gym.Env):
     def compress(self, row):
         """Compress the row: move non-zero values to the left"""
         new_row = row[row != 0]  # Remove zeros
-        new_row = np.pad(new_row, (0, self.size - len(new_row)), mode='constant')  # Pad with zeros on the right
+        new_row = np.pad(new_row, (0, self.size - len(new_row)),
+                         mode='constant')  # Pad with zeros on the right
         return new_row
 
     def merge(self, row):
@@ -121,13 +120,13 @@ class Game2048Env(gym.Env):
         # Check horizontally
         for i in range(self.size):
             for j in range(self.size - 1):
-                if self.board[i, j] == self.board[i, j+1]:
+                if self.board[i, j] == self.board[i, j + 1]:
                     return False
 
         # Check vertically
         for j in range(self.size):
             for i in range(self.size - 1):
-                if self.board[i, j] == self.board[i+1, j]:
+                if self.board[i, j] == self.board[i + 1, j]:
                     return False
 
         return True
@@ -156,6 +155,23 @@ class Game2048Env(gym.Env):
 
         return self.board, self.score, done, {}
 
+    def sim_afterstate(self, action):
+        board = self.board.copy()
+        score = self.score
+        if action == 0:
+            self.move_up()
+        elif action == 1:
+            self.move_down()
+        elif action == 2:
+            self.move_left()
+        elif action == 3:
+            self.move_right()
+        ret_board = self.board.copy()
+        ret_score = self.score
+        self.board = board
+        self.score = score
+        return ret_board, ret_score
+
     def render(self, mode="human", action=None):
         """
         Render the current board using Matplotlib.
@@ -172,7 +188,8 @@ class Game2048Env(gym.Env):
                 value = self.board[i, j]
                 color = COLOR_MAP.get(value, "#3c3a32")  # Default dark color
                 text_color = TEXT_COLOR.get(value, "white")
-                rect = plt.Rectangle((j - 0.5, i - 0.5), 1, 1, facecolor=color, edgecolor="black")
+                rect = plt.Rectangle((j - 0.5, i - 0.5), 1,
+                                     1, facecolor=color, edgecolor="black")
                 ax.add_patch(rect)
 
                 if value != 0:
@@ -189,7 +206,8 @@ class Game2048Env(gym.Env):
         """Simulate a left move for a single row"""
         # Compress: move non-zero numbers to the left
         new_row = row[row != 0]
-        new_row = np.pad(new_row, (0, self.size - len(new_row)), mode='constant')
+        new_row = np.pad(
+            new_row, (0, self.size - len(new_row)), mode='constant')
         # Merge: merge adjacent equal numbers (do not update score)
         for i in range(len(new_row) - 1):
             if new_row[i] == new_row[i + 1] and new_row[i] != 0:
@@ -197,7 +215,8 @@ class Game2048Env(gym.Env):
                 new_row[i + 1] = 0
         # Compress again
         new_row = new_row[new_row != 0]
-        new_row = np.pad(new_row, (0, self.size - len(new_row)), mode='constant')
+        new_row = np.pad(
+            new_row, (0, self.size - len(new_row)), mode='constant')
         return new_row
 
     def is_move_legal(self, action):
@@ -231,10 +250,72 @@ class Game2048Env(gym.Env):
         # If the simulated board is different from the current board, the move is legal
         return not np.array_equal(self.board, temp_board)
 
+
+env = Game2048Env()
+patterns = [[(0, 0), (1, 0), (2, 0), (3, 0)],
+            [(0, 1), (1, 1), (2, 1), (3, 1)],
+            [(0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1)],
+            [(0, 1), (0, 2), (1, 1), (1, 2), (2, 1), (2, 2)],
+            [(0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (3, 0)]]
+
+
+def rot_flip_pattern(p, t):
+    tem = copy.deepcopy(p)
+    if t >= 4:
+        for i in range(len(tem)):
+            tem[i] = (tem[i][0], 3 - tem[i][1])
+        t %= 4
+    for i in range(t):
+        for j in range(len(tem)):
+            tem[j] = (tem[j][1], 3 - tem[j][0])
+    return tem
+
+
+def gen_sym(pattern):
+    st = set()
+    ret = []
+    for i in range(8):
+        x = rot_flip_pattern(pattern, i)
+        x.sort()
+        y = tuple(x)
+        if y not in st:
+            st.add(y)
+            ret.append(x)
+    return ret
+
+
+sym_patterns = []
+for i, p in enumerate(patterns):
+    sp = gen_sym(p)
+    for x in sp:
+        sym_patterns.append((i, x))
+
+with open('v_table.pkl', 'rb') as file:
+    v_table = pickle.load(file)
+
+
+def index(board, pattern):
+    t = []
+    for x, y in pattern:
+        t.append((board[x, y]))
+    return tuple(t)
+
+
+def value(board):
+    v = 0
+    for i, p in sym_patterns:
+        v += v_table[i][index(board, p)]
+    return v
+
+
+def select_value(env: Game2048Env, a):
+    score = env.score
+    board, new_score = env.sim_afterstate(a)
+    return value(board) + new_score - score
+
 def get_action(state, score):
-    env = Game2048Env()
-    return random.choice([0, 1, 2, 3]) # Choose a random action
-    
-    # You can submit this random agent to evaluate the performance of a purely random strategy.
-
-
+    env.board = state
+    env.score = score
+    legal_moves = [a for a in range(4) if env.is_move_legal(a)]
+    action = int(legal_moves[np.argmax([select_value(a) for a in legal_moves])])
+    return action
