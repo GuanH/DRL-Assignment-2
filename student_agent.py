@@ -308,7 +308,7 @@ def value(board):
     return v
 
 
-def select_value(env: Game2048Env, a):
+def select_value(a):
     score = env.score
     board, new_score = env.sim_afterstate(a)
     return value(board) + new_score - score
