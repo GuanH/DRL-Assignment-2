@@ -309,15 +309,113 @@ def value(board):
     return v
 
 
-def select_value(a):
-    score = env.score
-    board, new_score = env.sim_afterstate(a)
+def select_value(tem_env,a):
+    score = tem_env.score
+    board, new_score = tem_env.sim_afterstate(a)
     return value(board) + new_score - score
+
+
+# class UCTNode:
+#     def __init__(self, state, score, parent=None, action=None):
+#         """
+#         state: current board state (numpy array)
+#         score: cumulative score at this node
+#         parent: parent node (None for root)
+#         action: action taken from parent to reach this node
+#         """
+#         self.state = state
+#         self.score = score
+#         self.parent = parent
+#         self.action = action
+#         self.children = {}
+#         self.visits = 0
+#         self.total_reward = 0.0
+#         self.untried_actions = [a for a in range(4) if env.is_move_legal(a)]
+#
+#     def fully_expanded(self):
+#         # A node is fully expanded if no legal actions remain untried.
+#         return len(self.untried_actions) == 0
+#
+#
+# class UCTMCTS:
+#     def __init__(self, iterations=1000, exploration_constant=1.41, rollout_depth=5):
+#         self.env = env
+#         self.iterations = iterations
+#         self.c = exploration_constant  # Balances exploration and exploitation
+#         self.rollout_depth = rollout_depth
+#
+#     def create_env_from_state(self, state, score):
+#         new_env = copy.deepcopy(self.env)
+#         new_env.board = state.copy()
+#         new_env.score = score
+#         return new_env
+#
+#     def select_child(self, node):
+#         mx_uct = float('-inf')
+#         action = 0
+#         for k, v in node.children.items():
+#             uct = v.total_reward + self.c * np.sqrt(np.log(node.visits) / v.visits)
+#             if uct > mx_uct:
+#                 mx_uct = uct
+#                 action = k
+#         return action
+#
+#     def rollout(self, sim_env, depth):
+#         for _ in range(depth):
+#             legal_moves = [a for a in range(4) if sim_env.is_move_legal(a)]
+#             if not legal_moves:
+#                 break
+#             # p = softmax([select_value(sim_env, a) for a in legal_moves])
+#             # action = np.random.choice(legal_moves, p=p)
+#             action = np.random.choice(legal_moves)
+#             sim_env.step(action)
+#         return value(sim_env.board)
+#
+#     def backpropagate(self, node, reward):
+#         while node is not None:
+#             node.visits += 1
+#             node.total_reward += (reward - node.total_reward) / node.visits
+#             node = node.parent
+#
+#     def run_simulation(self, root):
+#         node = root
+#         sim_env = self.create_env_from_state(node.state, node.score)
+#
+#         while node.fully_expanded():
+#             action = self.select_child(node)
+#             sim_env.step(action)
+#             node = node.children[action]
+#
+#         action = np.random.choice(node.untried_actions)
+#         sim_env.step(action)
+#         node.untried_actions.remove(action)
+#         newnode = UCTNode(sim_env.board, sim_env.score, parent=node, action=action)
+#         node.children[action] = newnode
+#         rollout_reward = self.rollout(sim_env, self.rollout_depth)
+#         self.backpropagate(newnode, rollout_reward)
+#
+#     def best_action_distribution(self, root):
+#         total_visits = sum(child.visits for child in root.children.values())
+#         best_visits = -1
+#         best_action = None
+#         for action, child in root.children.items():
+#             if child.visits > best_visits:
+#                 best_visits = child.visits
+#                 best_action = action
+#         return best_action
+#
+#
+# uct_mcts = UCTMCTS()
 
 def get_action(state, score):
     env.board = state.copy()
     env.score = score
     legal_moves = [a for a in range(4) if env.is_move_legal(a)]
-    action = int(legal_moves[np.argmax([select_value(a) for a in legal_moves])])
-    print(f'Score {env.score}')
+    action = int(legal_moves[np.argmax([select_value(env, a) for a in legal_moves])])
     return action
+    # root = uct_mcts.create_env_from_state(state, env.score)
+    # root = UCTNode(state, env.score)
+    # for _ in range(uct_mcts.iterations):
+    #     uct_mcts.run_simulation(root)
+    # best_action = uct_mcts.best_action_distribution(root)
+    # return best_action
