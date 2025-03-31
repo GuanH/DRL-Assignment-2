@@ -289,9 +289,10 @@ for i, p in enumerate(patterns):
     sp = gen_sym(p)
     for x in sp:
         sym_patterns.append((i, x))
-
+print('Loading pkl')
 with open('v_table.pkl', 'rb') as file:
     v_table = pickle.load(file)
+print('Loading done')
 
 
 def index(board, pattern):
@@ -314,8 +315,9 @@ def select_value(a):
     return value(board) + new_score - score
 
 def get_action(state, score):
-    env.board = state
+    env.board = state.copy()
     env.score = score
     legal_moves = [a for a in range(4) if env.is_move_legal(a)]
     action = int(legal_moves[np.argmax([select_value(a) for a in legal_moves])])
+    print(f'Score {env.score}')
     return action
