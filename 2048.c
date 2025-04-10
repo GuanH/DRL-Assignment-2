@@ -285,3 +285,15 @@ void sim_afterstate_2048(Game2048Env* self, int action){
     self->score = self->sim_score;
     self->sim_score = tem;
 }
+
+void set_board_2048(Game2048Env* self, int board[16]){
+    for(int i=0,k=0;i<4;i++){
+        for(int j=0;j<4;j++,k++){
+            self->board[i][j] = board[k];
+        }
+    }
+}
+
+void set_score_2048(Game2048Env* self, int score){
+    self->score = score;
+}

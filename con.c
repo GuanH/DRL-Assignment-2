@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef struct{
     int board[19][19];
@@ -9,6 +10,8 @@ typedef struct{
 
 void reset_env(Env* self){
     memset(self->board, 0, sizeof(self->board));
+    // player1 : 0 1
+    // player2 : 2 3
     self->turn = 1;
 }
 
@@ -44,8 +47,8 @@ int check_win_env(Env* self){
 }
 
 void play_env(Env* self, int x, int y){
-    self->board[x][y] = self->turn;
-    self->turn = 3 - self->turn;
+    self->board[x][y] = self->turn / 2 + 1;
+    self->turn = (self->turn+1)%4;
 }
 
 void render_env(Env* self){
@@ -59,6 +62,19 @@ void render_env(Env* self){
         }
         printf("\n");
     }
+    printf("\n");
 }
 
+void copy_env(Env* self, Env* from){
+    for(int i=0;i<19;i++){
+        for(int j=0;j<19;j++){
+            self->board[i][j] = from->board[i][j];
+        }
+    }
+    self->turn = from->turn;
+}
+
+int get_turn_env(Env* self){
+    return self->turn/2+1;
+}
 
