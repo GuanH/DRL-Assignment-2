@@ -52,3 +52,10 @@ class Game2048Wrapper:
     def sim_afterstate(self, action):
         lib.sim_afterstate_2048(self.game, action)
         return np.array(self.game.contents.sim_board), self.game.contents.sim_score
+
+    def set_board(self, board):
+        board = board.flatten()
+        lib.set_board_2048(self.game, (ctypes.c_int*16)(*board))
+
+    def set_score(self, score):
+        lib.set_score_2048(self.game, score)
