@@ -1,6 +1,54 @@
 import sys
 import numpy as np
 import random
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+device = torch.device("cuda")
+
+class Model(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # (1, 19, 19, 3)
+        self.con1 = nn.Sequential(nn.Conv2d(3, 32, 7), nn.SiLU(inplace=True))
+        self.con2 = nn.Sequential(nn.Conv2d(32, 32, 5), nn.SiLU(inplace=True))
+        self.con3 = nn.Sequential(nn.Conv2d(32, 16, 3), nn.SiLU(inplace=True))
+        self.linear = nn.Sequential(
+            nn.Linear(784, 1024), nn.SiLU(inplace=True),
+            nn.Linear(1024, 1024), nn.SiLU(inplace=True),
+            nn.Linear(1024, 784), nn.SiLU(inplace=True),
+        )
+        self.con4 = nn.Sequential(nn.ConvTranspose2d(16, 32, 3), nn.SiLU(inplace=True))
+        self.con5 = nn.Sequential(nn.ConvTranspose2d(32, 32, 5), nn.SiLU(inplace=True))
+        self.con6 = nn.ConvTranspose2d(32, 2, 7)
+
+    def forward(self, x):
+        B = x.shape[0]
+        x1 = self.con1(x)
+        x2 = self.con2(x1)
+        x3 = self.con3(x2)
+        y3 = x3 + self.linear(x3.reshape((B, -1))).reshape((B, 16, 7, 7))
+        y2 = x2 + self.con4(y3)
+        y1 = x1 + self.con5(y2)
+        # (B, 1, 19, 19)
+        y = self.con6(y1)
+        return y.reshape((B, 2, -1))
+
+
+model = Model()
+model = model.to(device)
+model.load_state_dict(torch.load('/home/guan/code/DRL-Assignment-2/Con6Models/Con6Model_19.pt'))
+
+def policy(board):
+    with torch.no_grad():
+        x = np.zeros((1, 3, 19, 19), dtype=np.float32)
+        for i in range(19):
+            for j in range(19):
+                x[0,board[i,j],i,j] = 1
+        p = model(torch.tensor(x, device=device))[0]
+        return x[0], p[0], p[1]
+
+
 
 class Connect6Game:
     def __init__(self, size=19):
@@ -8,12 +56,14 @@ class Connect6Game:
         self.board = np.zeros((size, size), dtype=int)  # 0: Empty, 1: Black, 2: White
         self.turn = 1  # 1: Black, 2: White
         self.game_over = False
+        self.first = True
 
     def reset_board(self):
         """Clears the board and resets the game."""
         self.board.fill(0)
         self.turn = 1
         self.game_over = False
+        self.first = True
         print("= ", flush=True)
 
     def set_board_size(self, size):
@@ -98,6 +148,7 @@ class Connect6Game:
             self.board[row, col] = 1 if color.upper() == 'B' else 2
 
         self.turn = 3 - self.turn
+        self.first = False
         print('= ', end='', flush=True)
 
     def generate_move(self, color):
@@ -106,10 +157,23 @@ class Connect6Game:
             print("? Game over")
             return
 
-        empty_positions = [(r, c) for r in range(self.size) for c in range(self.size) if self.board[r, c] == 0]
-        selected = random.sample(empty_positions, 1)
-        move_str = ",".join(f"{self.index_to_label(c)}{r+1}" for r, c in selected)
-        
+        board = self.board.copy()
+        if color == 'W':
+            board = (3 - board) % 3
+        mask = torch.zeros(19 * 19)
+        mask[board.reshape(19 * 19) != 0] = float('-inf')
+        encode_board, p1, p2 = policy(board)
+        p1 = F.softmax(p1.detach().cpu() + mask, dim=-1).numpy()
+        action = np.random.choice(len(p1), p=p1)
+        selected = [(action // 19, action % 19)]
+        if not self.first:
+            mask[action] = float('-inf')
+            p2 = F.softmax(p2.detach().cpu() + mask, dim=-1).numpy()
+            action = np.random.choice(len(p2), p=p2)
+            selected.append((action // 19, action % 19))
+
+        move_str = ",".join(f"{self.index_to_label(c)}{r + 1}" for r, c in selected)
+
         self.play_move(color, move_str)
 
         print(f"{move_str}\n\n", end='', flush=True)
@@ -119,7 +183,7 @@ class Connect6Game:
         """Displays the board as text."""
         print("= ")
         for row in range(self.size - 1, -1, -1):
-            line = f"{row+1:2} " + " ".join("X" if self.board[row, col] == 1 else "O" if self.board[row, col] == 2 else "." for col in range(self.size))
+            line = f"{row + 1:2} " + " ".join("X" if self.board[row, col] == 1 else "O" if self.board[row, col] == 2 else "." for col in range(self.size))
             print(line)
         col_labels = "   " + " ".join(self.index_to_label(i) for i in range(self.size))
         print(col_labels)
@@ -127,7 +191,7 @@ class Connect6Game:
 
     def list_commands(self):
         """Lists all available commands."""
-        print("= ", flush=True)  
+        print("= ", flush=True)
 
     def process_command(self, command):
         """Parses and executes GTP commands."""
@@ -137,7 +201,7 @@ class Connect6Game:
 
         if not command:
             return
-        
+
         parts = command.split()
         cmd = parts[0].lower()
 
@@ -182,6 +246,7 @@ class Connect6Game:
                 break
             except Exception as e:
                 print(f"? Error: {str(e)}")
+                break
 
 if __name__ == "__main__":
     game = Connect6Game()
