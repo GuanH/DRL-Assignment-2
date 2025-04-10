@@ -6,8 +6,6 @@ import gym
 from gym import spaces
 import matplotlib.pyplot as plt
 import copy
-import torch
-import torch.nn as nn
 from Game2048Wrapper import Game2048Wrapper
 
 
