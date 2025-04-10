@@ -313,7 +313,7 @@ for i, p in enumerate(patterns):
     for x in sp:
         sym_patterns.append((i, x))
 
-with open('/tmp/v_table_c.pkl', 'rb') as file:
+with open('v_table.pkl', 'rb') as file:
     v_table = pickle.load(file)
 def index(board, pattern):
     t = []
